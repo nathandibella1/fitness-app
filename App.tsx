@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Alert, AlertDescription } from "../components/ui/alert";
-import { Badge } from "../components/ui/badge";
+import { useState, useEffect, Suspense, lazy } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   Activity,
   User,
@@ -23,100 +23,17 @@ import {
   Settings,
   Star
 } from "lucide-react";
+import { api, type UserProfile, type DailyState } from "@/lib/api";
 
-// API configuration - change this to your backend URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-
-// API utility class that matches your backend endpoints
-const api = {
-  // Health check endpoint
-  healthCheck: async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
-      return await response.json();
-    } catch (error) {
-      console.warn('API health check failed:', error);
-      return { status: "offline" };
-    }
-  },
-
-  // Generate meal plan
-  generateMealPlan: async (data) => {
-    const response = await fetch(`${API_BASE_URL}/generate_meal_plan`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate meal plan');
-    }
-    
-    return await response.json();
-  },
-
-  // Generate workout plan
-  generateWorkout: async (data) => {
-    const response = await fetch(`${API_BASE_URL}/generate_workout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate workout plan');
-    }
-    
-    return await response.json();
-  },
-
-  // Handle plateau strategy
-  handlePlateau: async (data) => {
-    const response = await fetch(`${API_BASE_URL}/handle_plateau`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to generate plateau strategy');
-    }
-    
-    return await response.json();
-  },
-
-  // Chat with AI coach
-  chat: async (data) => {
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to send chat message');
-    }
-    
-    return await response.json();
-  }
-};
+// Lazy-load heavier subviews to reduce initial bundle
+const LazyMealPlan = lazy(() => import(/* @vite-ignore */ '@/lazy/MealPlan'));
+const LazyWorkoutPlan = lazy(() => import(/* @vite-ignore */ '@/lazy/WorkoutPlan'));
+const LazyPlateau = lazy(() => import(/* @vite-ignore */ '@/lazy/Plateau'));
 
 export default function FitnessCoachApp() {
   // State management
   const [activeTab, setActiveTab] = useState("profile");
-  const [userProfile, setUserProfile] = useState({
+  const [userProfile, setUserProfile] = useState<UserProfile>({
     name: "",
     age: 25,
     gender: "male",
@@ -131,7 +48,7 @@ export default function FitnessCoachApp() {
     tracking_devices: []
   });
 
-  const [dailyState, setDailyState] = useState({
+  const [dailyState, setDailyState] = useState<DailyState>({
     week: 1,
     day: "monday",
     last_check_in: {
@@ -146,9 +63,9 @@ export default function FitnessCoachApp() {
   });
 
   const [plans, setPlans] = useState({
-    meal: null,
-    workout: null,
-    plateau: null
+    meal: null as any,
+    workout: null as any,
+    plateau: null as any
   });
 
   const [chatMessages, setChatMessages] = useState([
@@ -160,21 +77,21 @@ export default function FitnessCoachApp() {
   ]);
   const [chatInput, setChatInput] = useState("");
 
-  const [loading, setLoading] = useState({});
-  const [errors, setErrors] = useState({});
-  const [successes, setSuccesses] = useState({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [successes, setSuccesses] = useState<Record<string, string>>({});
 
   // Utility functions
-  const setLoadingState = (key, value) => {
+  const setLoadingState = (key: string, value: boolean) => {
     setLoading(prev => ({ ...prev, [key]: value }));
   };
 
-  const setError = (key, message) => {
+  const setError = (key: string, message: string) => {
     setErrors(prev => ({ ...prev, [key]: message }));
     setTimeout(() => setErrors(prev => ({ ...prev, [key]: "" })), 5000);
   };
 
-  const setSuccess = (key, message) => {
+  const setSuccess = (key: string, message: string) => {
     setSuccesses(prev => ({ ...prev, [key]: message }));
     setTimeout(() => setSuccesses(prev => ({ ...prev, [key]: "" })), 3000);
   };
@@ -191,7 +108,7 @@ export default function FitnessCoachApp() {
       setPlans(prev => ({ ...prev, meal: data.meal_plan }));
       setSuccess("meal", "Meal plan generated successfully!");
       setActiveTab("meal");
-    } catch (error) {
+    } catch (error: any) {
       setError("meal", error.message || "Failed to generate meal plan");
     } finally {
       setLoadingState("meal", false);
@@ -212,7 +129,7 @@ export default function FitnessCoachApp() {
       setPlans(prev => ({ ...prev, workout: data.workout_plan }));
       setSuccess("workout", "Workout plan generated successfully!");
       setActiveTab("workout");
-    } catch (error) {
+    } catch (error: any) {
       setError("workout", error.message || "Failed to generate workout plan");
     } finally {
       setLoadingState("workout", false);
@@ -239,7 +156,7 @@ export default function FitnessCoachApp() {
       setPlans(prev => ({ ...prev, plateau: data.plateau_strategy }));
       setSuccess("plateau", "Plateau strategy generated!");
       setActiveTab("plateau");
-    } catch (error) {
+    } catch (error: any) {
       setError("plateau", error.message || "Failed to generate plateau strategy");
     } finally {
       setLoadingState("plateau", false);
@@ -259,14 +176,14 @@ export default function FitnessCoachApp() {
     try {
       const data = await api.chat({ user_id: userProfile.name, message: userMessage });
       setChatMessages(prev => [...prev, { role: "assistant", content: data.reply, timestamp: Date.now() }]);
-    } catch (error) {
+    } catch (error: any) {
       setError("chat", error.message || "Failed to send message");
     } finally {
       setLoadingState("chat", false);
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: any) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendChatMessage();
@@ -278,8 +195,6 @@ export default function FitnessCoachApp() {
       .then(data => console.log("API Health:", data))
       .catch(err => console.warn("API not available:", err));
   }, []);
-
-
 
   // Tab navigation component
   const TabButton = ({ id, icon: Icon, label, active, onClick }) => (
@@ -312,7 +227,7 @@ export default function FitnessCoachApp() {
             <Input
               placeholder="Enter your name"
               value={userProfile.name}
-              onChange={e => setUserProfile({ ...userProfile, name: e.target.value })}
+              onChange={e => setUserProfile({ ...userProfile, name: (e.target as HTMLInputElement).value })}
               className="border-2 focus:border-blue-500"
             />
           </div>
@@ -322,7 +237,7 @@ export default function FitnessCoachApp() {
               type="number"
               placeholder="25"
               value={userProfile.age}
-              onChange={e => setUserProfile({ ...userProfile, age: Number(e.target.value) })}
+              onChange={e => setUserProfile({ ...userProfile, age: Number((e.target as HTMLInputElement).value) })}
               className="border-2 focus:border-blue-500"
             />
           </div>
@@ -330,7 +245,7 @@ export default function FitnessCoachApp() {
             <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
             <select
               value={userProfile.gender}
-              onChange={e => setUserProfile({ ...userProfile, gender: e.target.value })}
+              onChange={e => setUserProfile({ ...userProfile, gender: (e.target as HTMLSelectElement).value })}
               className="w-full p-2 border-2 rounded-md focus:border-blue-500 focus:outline-none"
             >
               <option value="male">Male</option>
@@ -342,7 +257,7 @@ export default function FitnessCoachApp() {
             <label className="block text-sm font-medium text-gray-700 mb-2">Experience Level</label>
             <select
               value={userProfile.experience_level}
-              onChange={e => setUserProfile({ ...userProfile, experience_level: e.target.value })}
+              onChange={e => setUserProfile({ ...userProfile, experience_level: (e.target as HTMLSelectElement).value })}
               className="w-full p-2 border-2 rounded-md focus:border-blue-500 focus:outline-none"
             >
               <option value="beginner">Beginner</option>
@@ -355,7 +270,7 @@ export default function FitnessCoachApp() {
             <Input
               placeholder="e.g., build muscle, lose weight"
               value={userProfile.fitness_goal}
-              onChange={e => setUserProfile({ ...userProfile, fitness_goal: e.target.value })}
+              onChange={e => setUserProfile({ ...userProfile, fitness_goal: (e.target as HTMLInputElement).value })}
               className="border-2 focus:border-blue-500"
             />
           </div>
@@ -363,7 +278,7 @@ export default function FitnessCoachApp() {
             <label className="block text-sm font-medium text-gray-700 mb-2">Diet Type</label>
             <select
               value={userProfile.diet_type}
-              onChange={e => setUserProfile({ ...userProfile, diet_type: e.target.value })}
+              onChange={e => setUserProfile({ ...userProfile, diet_type: (e.target as HTMLSelectElement).value })}
               className="w-full p-2 border-2 rounded-md focus:border-blue-500 focus:outline-none"
             >
               <option value="balanced">Balanced</option>
@@ -377,15 +292,15 @@ export default function FitnessCoachApp() {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3 pt-4">
-          <Button onClick={generateMealPlan} disabled={loading.meal} className="flex-1 bg-green-600 hover:bg-green-700">
+          <Button onClick={generateMealPlan} disabled={!!loading.meal} className="flex-1 bg-green-600 hover:bg-green-700">
             {loading.meal ? <Loader2 className="animate-spin mr-2" size={16} /> : <UtensilsCrossed className="mr-2" size={16} />}
             Generate Meal Plan
           </Button>
-          <Button onClick={generateWorkout} disabled={loading.workout} className="flex-1">
+          <Button onClick={generateWorkout} disabled={!!loading.workout} className="flex-1">
             {loading.workout ? <Loader2 className="animate-spin mr-2" size={16} /> : <Dumbbell className="mr-2" size={16} />}
             Generate Workout
           </Button>
-          <Button onClick={handlePlateauBreaker} disabled={loading.plateau} className="flex-1 bg-purple-600 hover:bg-purple-700">
+          <Button onClick={handlePlateauBreaker} disabled={!!loading.plateau} className="flex-1 bg-purple-600 hover:bg-purple-700">
             {loading.plateau ? <Loader2 className="animate-spin mr-2" size={16} /> : <TrendingUp className="mr-2" size={16} />}
             Plateau Breaker
           </Button>
