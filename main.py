@@ -30,7 +30,7 @@ settings = get_settings()
 limiter = Limiter(key_func=get_remote_address)
 
 # Thread pool for CPU-bound tasks
-thread_pool = ThreadPoolExecutor(max_workers=4)
+thread_pool.shutdown(wait=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
