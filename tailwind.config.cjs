@@ -3,6 +3,8 @@
 export default {
   darkMode: ["class"],
   content: [
+    './index.html',
+    './*.{ts,tsx}',
     './pages/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
